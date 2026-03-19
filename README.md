@@ -16,7 +16,7 @@ Competition-first internal platform for the NVIDIA Nemotron Model Reasoning Chal
 - `apps/backend`: FastAPI app, services, Temporal worker, tests.
 - `apps/frontend`: Vite dashboard.
 - `experiments`: benchmark samples and prompt templates.
-- `notebooks`: Kaggle-facing starter notebooks and smoke tests.
+- `notebooks`: Kaggle-facing competition notebooks and smoke tests.
 - `artifacts`: generated outputs and submission bundles.
 - `docs/competition`: Kaggle rules capture and compliance docs.
 - `docs/skills`: reusable Codex skills for competition operations and experimentation.
