@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 
-.PHONY: backend-dev backend-worker backend-compile frontend-install frontend-dev frontend-build skill-validate
+.PHONY: backend-dev backend-worker backend-compile frontend-install frontend-dev frontend-build skill-validate kaggle-import
 
 backend-dev:
 	cd apps/backend && python3 -m uvicorn nemotron_platform.main:app --reload --app-dir src
@@ -26,3 +26,8 @@ skill-validate:
 	python3 /home/code/.codex/skills/.system/skill-creator/scripts/quick_validate.py docs/skills/synthetic-data-curator
 	python3 /home/code/.codex/skills/.system/skill-creator/scripts/quick_validate.py docs/skills/temporal-ml-orchestrator
 
+kaggle-import:
+ifndef SOURCE
+	$(error SOURCE is required, for example: make kaggle-import SOURCE=/path/to/kaggle_run_<id>.zip)
+endif
+	python3 scripts/import_kaggle_run.py "$(SOURCE)"
