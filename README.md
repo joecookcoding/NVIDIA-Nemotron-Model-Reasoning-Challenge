@@ -69,6 +69,6 @@ python3 -m nemotron_platform.temporal.worker
 ## Kaggle Notebook
 
 - Competition notebook: `notebooks/nemotron_leaderboard_engine.ipynb`
-- Use it for Kaggle-side GPU verification, model-load smoke tests, and structured JSONL/session logging.
+- Use it for Kaggle-side GPU verification, Torch/runtime dependency setup, model-load smoke tests, and structured JSONL/session logging.
 - Each run writes artifacts under `/kaggle/working/artifacts/kaggle_runs/<run_id>/` and also creates a zip bundle in `/kaggle/working`.
 - Import an exported run locally with `make kaggle-import SOURCE=/path/to/kaggle_run_<run_id>.zip`.
