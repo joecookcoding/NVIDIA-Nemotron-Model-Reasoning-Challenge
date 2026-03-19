@@ -1,0 +1,4 @@
+{"task_id":"sample-1","prompt":"What is 2 + 2? Reply with just the answer.","reference_answer":"4","metadata":{"category":"math"}}
+{"task_id":"sample-2","prompt":"What is the capital of France? Reply with just the answer.","reference_answer":"Paris","metadata":{"category":"geography"}}
+{"task_id":"sample-3","prompt":"What letter comes after C in the English alphabet? Reply with just the answer.","reference_answer":"D","metadata":{"category":"logic"}}
+

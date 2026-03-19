@@ -1,0 +1,4 @@
+interface:
+  display_name: "Synthetic Data Curator"
+  short_description: "Generate and filter synth datasets"
+  default_prompt: "Use $synthetic-data-curator to generate, filter, and manifest synthetic reasoning data."

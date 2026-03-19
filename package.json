@@ -1,0 +1,13 @@
+{
+  "name": "nemotron-competition-platform",
+  "private": true,
+  "workspaces": [
+    "apps/frontend"
+  ],
+  "scripts": {
+    "frontend:dev": "npm --workspace apps/frontend run dev",
+    "frontend:build": "npm --workspace apps/frontend run build",
+    "frontend:preview": "npm --workspace apps/frontend run preview"
+  }
+}
+

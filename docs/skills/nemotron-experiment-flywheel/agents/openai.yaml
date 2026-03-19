@@ -1,0 +1,4 @@
+interface:
+  display_name: "Nemotron Experiment Flywheel"
+  short_description: "Run sweeps, ranking, reranking"
+  default_prompt: "Use $nemotron-experiment-flywheel to plan and execute a Nemotron prompt and reranking sweep."

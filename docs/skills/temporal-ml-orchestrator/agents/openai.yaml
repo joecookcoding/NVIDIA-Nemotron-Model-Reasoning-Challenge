@@ -1,0 +1,4 @@
+interface:
+  display_name: "Temporal ML Orchestrator"
+  short_description: "Design durable ML workflows"
+  default_prompt: "Use $temporal-ml-orchestrator to wire a durable Temporal workflow for model evaluation and search."

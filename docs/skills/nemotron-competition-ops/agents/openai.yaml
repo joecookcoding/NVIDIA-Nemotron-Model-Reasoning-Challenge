@@ -1,0 +1,4 @@
+interface:
+  display_name: "Nemotron Competition Ops"
+  short_description: "Capture rules and leaderboard ops"
+  default_prompt: "Use $nemotron-competition-ops to freeze Kaggle rules and maintain the competition operating checklist."

@@ -1,0 +1,22 @@
+[
+  {
+    "id": "baseline-default",
+    "name": "Baseline Default",
+    "system_prompt": null,
+    "prompt_template": "{{prompt}}",
+    "tags": [
+      "baseline",
+      "default"
+    ]
+  },
+  {
+    "id": "final-answer-only",
+    "name": "Final Answer Only",
+    "system_prompt": null,
+    "prompt_template": "Answer directly and only return the final answer.\n\n{{prompt}}",
+    "tags": [
+      "concise",
+      "final-answer"
+    ]
+  }
+]
