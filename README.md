@@ -16,6 +16,7 @@ Competition-first internal platform for the NVIDIA Nemotron Model Reasoning Chal
 - `apps/backend`: FastAPI app, services, Temporal worker, tests.
 - `apps/frontend`: Vite dashboard.
 - `experiments`: benchmark samples and prompt templates.
+- `notebooks`: Kaggle-facing starter notebooks and smoke tests.
 - `artifacts`: generated outputs and submission bundles.
 - `docs/competition`: Kaggle rules capture and compliance docs.
 - `docs/skills`: reusable Codex skills for competition operations and experimentation.
@@ -63,3 +64,8 @@ python3 -m nemotron_platform.temporal.worker
 - NVIDIA's published examples use `transformers` with `trust_remote_code=True`, `torch_dtype=torch.bfloat16`, and `device_map="auto"`.
 - Reasoning-off mode should use the model's chat template flag rather than prompt hacks when the serving stack supports it.
 - See `docs/competition/model_runtime_notes.md` for the working assumptions captured from the model references.
+
+## Kaggle Notebook
+
+- Competition notebook: `notebooks/nemotron_leaderboard_engine.ipynb`
+- Use it for Kaggle-side GPU verification and model-load smoke tests before attempting full competition inference.
