@@ -66,9 +66,23 @@ python3 -m nemotron_platform.temporal.worker
 - Reasoning-off mode should use the model's chat template flag rather than prompt hacks when the serving stack supports it.
 - See `docs/competition/model_runtime_notes.md` for the working assumptions captured from the model references.
 
+## Competition Data In Repo
+
+- `docs/train.csv` is now available as the local benchmark name `competition_train`.
+- `docs/test.csv` is now available as the local benchmark name `competition_test`.
+- The benchmark loader still supports the JSONL samples under `experiments/benchmarks`.
+
+## Local Baseline
+
+- Run `make competition-baseline` to score the heuristic baseline against `docs/train.csv`.
+- The runner writes artifacts under `artifacts/competition_baseline/<timestamp>/`.
+- It emits `summary.json`, `train_predictions.csv`, `fold_assignments.json`, and a `submission.csv` for whatever `test.csv` path you point it at.
+- The baseline currently routes across the six known prompt families and uses symbolic heuristics for Roman numerals, gravity, unit conversion, text decryption, and part of the bit-manipulation family.
+
 ## Kaggle Notebook
 
 - Competition notebook: `notebooks/nemotron_leaderboard_engine.ipynb`
 - Use it for Kaggle-side GPU verification, Torch/runtime dependency setup, model-load smoke tests, and structured JSONL/session logging.
+- If internet is blocked on the selected accelerator, attach an offline wheelhouse dataset and see `docs/competition/kaggle_offline_runtime.md`.
 - Each run writes artifacts under `/kaggle/working/artifacts/kaggle_runs/<run_id>/` and also creates a zip bundle in `/kaggle/working`.
 - Import an exported run locally with `make kaggle-import SOURCE=/path/to/kaggle_run_<run_id>.zip`.

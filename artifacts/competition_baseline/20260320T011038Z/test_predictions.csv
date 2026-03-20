@@ -1,0 +1,4 @@
+task_id,family,prediction,solver,solved,fold_index,notes
+00066667,bit_manipulation,10010111,bit_manipulation_baseline,true,,
+000b53cf,bit_manipulation,00011011,bit_manipulation_baseline,true,,
+00189f6a,text_decryption,,text_decryption_baseline,false,,Heuristic solver could not infer a deterministic answer.

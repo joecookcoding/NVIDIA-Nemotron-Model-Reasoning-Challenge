@@ -30,7 +30,10 @@ def get_runtime() -> RuntimeServices:
     repository.initialize()
     artifact_store = ArtifactStore(settings.artifacts_root)
     artifact_store.ensure_root()
-    benchmark_loader = BenchmarkLoader(settings.benchmarks_root)
+    benchmark_loader = BenchmarkLoader(
+        settings.benchmarks_root,
+        competition_docs_root=settings.competition_docs_root,
+    )
     evaluation = EvaluationService(settings, repository, artifact_store, benchmark_loader)
     synthetic = SyntheticDataService(repository, artifact_store, benchmark_loader)
     submissions = SubmissionService(settings, repository, artifact_store)
@@ -43,4 +46,3 @@ def get_runtime() -> RuntimeServices:
         synthetic=synthetic,
         submissions=submissions,
     )
-

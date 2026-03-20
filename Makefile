@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 
-.PHONY: backend-dev backend-worker backend-compile frontend-install frontend-dev frontend-build skill-validate kaggle-import
+.PHONY: backend-dev backend-worker backend-compile frontend-install frontend-dev frontend-build skill-validate kaggle-import competition-baseline
 
 backend-dev:
 	cd apps/backend && python3 -m uvicorn nemotron_platform.main:app --reload --app-dir src
@@ -31,3 +31,6 @@ ifndef SOURCE
 	$(error SOURCE is required, for example: make kaggle-import SOURCE=/path/to/kaggle_run_<id>.zip)
 endif
 	python3 scripts/import_kaggle_run.py "$(SOURCE)"
+
+competition-baseline:
+	python3 scripts/run_competition_baseline.py
