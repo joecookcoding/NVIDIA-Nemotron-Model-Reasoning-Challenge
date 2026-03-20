@@ -27,6 +27,17 @@ PyPI package pages for `mamba-ssm` and `causal-conv1d` currently document source
 - prefers offline wheel installs when a matching wheelhouse is attached,
 - and only falls back to online installs when internet is actually available.
 
+## Dependency Manager Note
+
+Kaggle's `Install Dependencies` UI accepts only literal install commands. Do not include:
+
+- blank lines
+- shell comments
+- `python -m pip ...`
+- any non-install command
+
+Use the exact three `pip install ...` lines in `input_requirements.txt` or `docs/competition/kaggle_dependency_manager_commands.txt`.
+
 ## Operational Loop
 
 1. Build or upload the wheelhouse as a Kaggle dataset.
