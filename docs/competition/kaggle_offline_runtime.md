@@ -38,6 +38,8 @@ Kaggle's `Install Dependencies` UI accepts only literal install commands. Do not
 
 Use the exact three `pip install ...` lines in `input_requirements.txt` or `docs/competition/kaggle_dependency_manager_commands.txt`.
 
+Do not put `causal-conv1d` or `mamba-ssm` in Kaggle's dependency manager input. PyPI currently exposes `causal-conv1d` as a source distribution, and its build path imports Torch and CUDA build helpers during setup. That makes it fragile in Kaggle's environment build step. Install those packages from a compatible wheelhouse instead.
+
 ## Operational Loop
 
 1. Build or upload the wheelhouse as a Kaggle dataset.
