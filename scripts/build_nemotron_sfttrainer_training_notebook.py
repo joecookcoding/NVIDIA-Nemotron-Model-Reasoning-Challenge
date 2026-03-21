@@ -107,6 +107,29 @@ cells = [
                     return True
             return False
 
+        def select_package_wheels(wheelhouse: Path, package_names: tuple[str, ...]) -> tuple[dict[str, list[Path]], list[str]]:
+            py_tag = f"cp{sys.version_info.major}{sys.version_info.minor}"
+            selected: dict[str, list[Path]] = {}
+            missing: list[str] = []
+
+            for package_name in package_names:
+                normalized = package_name.lower().replace("-", "_")
+                matches = sorted(
+                    path for path in wheelhouse.glob("*.whl")
+                    if path.name.lower().replace("-", "_").startswith(normalized)
+                )
+                preferred = [
+                    path for path in matches
+                    if py_tag in path.name or "py3-none-any" in path.name or "none-any" in path.name
+                ]
+                chosen = preferred or matches
+                if chosen:
+                    selected[package_name] = chosen
+                else:
+                    missing.append(package_name)
+
+            return selected, missing
+
         def find_model_candidates(root: Path) -> list[Path]:
             candidates: list[Path] = []
             for config_path in root.rglob("config.json"):
@@ -199,29 +222,44 @@ cells = [
             "or run kagglehub.dataset_download('dennisfong/nvidia-nemotron-offline-packages') first."
         )
 
-        install_command = [
-            sys.executable,
-            "-m",
-            "pip",
-            "install",
-            "--quiet",
-            "--no-index",
-            "--find-links",
-            str(OFFLINE_PACKAGE_ROOT),
-            "--ignore-installed",
-            "datasets",
-            "trl",
-            "peft",
-            "mamba-ssm",
-            "causal-conv1d",
-            "ninja",
-            "packaging",
-        ]
-
         OFFLINE_INSTALL_ATTEMPTED = False
         if MISSING_MODULES:
+            wheel_map, missing_wheels = select_package_wheels(
+                OFFLINE_PACKAGE_ROOT,
+                ("datasets", "trl", "peft", "mamba_ssm", "causal_conv1d", "ninja", "packaging"),
+            )
+            available_wheels = sorted(path.name for path in OFFLINE_PACKAGE_ROOT.glob("*.whl"))
+            if missing_wheels:
+                diagnostic_payload = {
+                    "stage": "offline_package_resolution",
+                    "offline_package_root": str(OFFLINE_PACKAGE_ROOT),
+                    "missing_wheels": missing_wheels,
+                    "available_wheels_preview": available_wheels[:200],
+                }
+                write_json(RUN_ROOT / "offline_package_resolution_error.json", diagnostic_payload)
+                raise RuntimeError(
+                    "The offline package dataset does not contain compatible wheels for: "
+                    + ", ".join(missing_wheels)
+                    + ". Inspect offline_package_resolution_error.json in the run artifacts."
+                )
+
+            install_command = [
+                sys.executable,
+                "-m",
+                "pip",
+                "install",
+                "--quiet",
+                "--no-index",
+                "--ignore-installed",
+            ]
+            for package_name in ("datasets", "trl", "peft", "mamba_ssm", "causal_conv1d", "ninja", "packaging"):
+                install_command.extend(str(path) for path in wheel_map.get(package_name, []))
+
             print("Installing offline packages from:", OFFLINE_PACKAGE_ROOT)
             print("Missing modules before install:", MISSING_MODULES)
+            print("Resolved wheel files:")
+            for package_name, paths in wheel_map.items():
+                print(package_name, [path.name for path in paths])
             OFFLINE_INSTALL_ATTEMPTED = True
             subprocess.check_call(install_command)
             importlib.invalidate_caches()
@@ -269,6 +307,7 @@ cells = [
             "test_data_path": str(TEST_DATA_PATH) if TEST_DATA_PATH is not None else None,
             "required_packages": REQUIRED_STATUS,
             "offline_install_attempted": OFFLINE_INSTALL_ATTEMPTED,
+            "offline_package_root": str(OFFLINE_PACKAGE_ROOT),
             "python_version": platform.python_version(),
             "hostname": socket.gethostname(),
         }
