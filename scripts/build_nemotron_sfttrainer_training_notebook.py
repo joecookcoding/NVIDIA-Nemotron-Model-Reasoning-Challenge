@@ -188,7 +188,7 @@ cells = [
             return next(
                 (
                     path for path in WHEELHOUSE_DIRS
-                    if wheelhouse_has_package(path, ("datasets", "trl", "peft", "mamba_ssm", "causal_conv1d"))
+                    if wheelhouse_has_package(path, ("datasets", "trl", "peft", "mamba_ssm"))
                 ),
                 None,
             )
@@ -205,7 +205,6 @@ cells = [
             "trl",
             "peft",
             "mamba_ssm",
-            "causal_conv1d",
         ]
 
         def collect_required_status() -> dict[str, bool]:
@@ -229,17 +228,19 @@ cells = [
                 ("datasets", "trl", "peft", "mamba_ssm", "causal_conv1d", "ninja", "packaging"),
             )
             available_wheels = sorted(path.name for path in OFFLINE_PACKAGE_ROOT.glob("*.whl"))
-            if missing_wheels:
+            required_missing_wheels = [name for name in missing_wheels if name != "causal_conv1d"]
+            if required_missing_wheels:
                 diagnostic_payload = {
                     "stage": "offline_package_resolution",
                     "offline_package_root": str(OFFLINE_PACKAGE_ROOT),
-                    "missing_wheels": missing_wheels,
+                    "missing_wheels": required_missing_wheels,
+                    "optional_missing_wheels": [name for name in missing_wheels if name == "causal_conv1d"],
                     "available_wheels_preview": available_wheels[:200],
                 }
                 write_json(RUN_ROOT / "offline_package_resolution_error.json", diagnostic_payload)
                 raise RuntimeError(
                     "The offline package dataset does not contain compatible wheels for: "
-                    + ", ".join(missing_wheels)
+                    + ", ".join(required_missing_wheels)
                     + ". Inspect offline_package_resolution_error.json in the run artifacts."
                 )
 
@@ -252,8 +253,9 @@ cells = [
                 "--no-index",
                 "--ignore-installed",
             ]
-            for package_name in ("datasets", "trl", "peft", "mamba_ssm", "causal_conv1d", "ninja", "packaging"):
+            for package_name in ("datasets", "trl", "peft", "mamba_ssm", "ninja", "packaging"):
                 install_command.extend(str(path) for path in wheel_map.get(package_name, []))
+            install_command.extend(str(path) for path in wheel_map.get("causal_conv1d", []))
 
             print("Installing offline packages from:", OFFLINE_PACKAGE_ROOT)
             print("Missing modules before install:", MISSING_MODULES)
