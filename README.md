@@ -81,10 +81,12 @@ python3 -m nemotron_platform.temporal.worker
 
 ## Kaggle Notebook
 
-- Competition notebook: `notebooks/nemotron_leaderboard_engine.ipynb`
-- LoRA training notebook: `notebooks/nvidia-nemotron-sfttrainer-training.ipynb`
-- Use it for Kaggle-side GPU verification, Torch/runtime dependency setup, model-load smoke tests, and structured JSONL/session logging.
-- Use the LoRA notebook for offline adapter training, local validation scoring, and packaging `submission.zip` from the trained adapter files.
+- Preferred submission notebook: `notebooks/nvidia-nemotron-submission-demo.ipynb`
+- Competition analysis notebook: `notebooks/nemotron_leaderboard_engine.ipynb`
+- Extended LoRA training notebook: `notebooks/nvidia-nemotron-sfttrainer-training.ipynb`
+- Use the submission demo notebook for the simplest Kaggle path: offline wheelhouse install, quick LoRA training, and packaging `submission.zip`.
+- Use the leaderboard notebook for Kaggle-side GPU verification, Torch/runtime dependency setup, heuristic baselines, model-load smoke tests, and structured JSONL/session logging.
+- Use the extended LoRA notebook when you want a heavier offline adapter-training flow with local validation scoring before packaging `submission.zip`.
 - The leaderboard notebook may run a local offline `pip install` for `mamba-ssm` and `causal-conv1d` if it detects a compatible wheelhouse. The LoRA training notebook also runs a local offline `pip install` from the `dennisfong/nvidia-nemotron-offline-packages` wheelhouse, whether it is attached under `/kaggle/input` or downloaded via `kagglehub.dataset_download(...)`.
 - Kaggle's `Install Dependencies` parser is strict: every line must begin with `pip install` and blank/comment lines can fail the build.
 - Use the exact paste-ready commands in `input_requirements.txt` or `docs/competition/kaggle_dependency_manager_commands.txt`.
