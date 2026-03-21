@@ -14,4 +14,8 @@ artifacts/generated/
 artifacts/runs/
 artifacts/submissions/
 artifacts/datasets/
-
+artifacts/lora/
+artifacts/checkpoints/
+artifacts/models/
+checkpoints/
+private/
