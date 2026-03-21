@@ -14,3 +14,5 @@ The Kaggle competition notebook runs offline. Keep `input_requirements.txt` limi
 Do not add `mamba-ssm`, `causal-conv1d`, comments, blank lines, or `python -m pip` commands to `input_requirements.txt`.
 
 The Kaggle notebook itself must not attempt network installs at runtime. It should only check whether required packages are already available and skip the full model path if they are not.
+
+Exception: `notebooks/nvidia-nemotron-sfttrainer-training.ipynb` is allowed to run a local offline `pip install` from `/kaggle/input/datasets/dennisfong/nvidia-nemotron-offline-packages/offline_packages`. It still must not call the public internet.

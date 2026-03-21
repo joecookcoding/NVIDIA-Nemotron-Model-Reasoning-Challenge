@@ -37,7 +37,7 @@ cells = [
 
         - the competition `train.csv` is attached,
         - the Nemotron model is attached,
-        - required offline packages are already installed before `Run All`,
+        - the offline package dataset is either attached under `/kaggle/input` or downloaded with `kagglehub.dataset_download("dennisfong/nvidia-nemotron-offline-packages")`,
         - and no network calls are made during notebook execution.
         """
     ),
@@ -55,6 +55,7 @@ cells = [
         import shutil
         import socket
         import stat
+        import subprocess
         import sys
         import time
         import traceback
@@ -96,6 +97,16 @@ cells = [
                 wheel_counts[wheel_path.parent] = wheel_counts.get(wheel_path.parent, 0) + 1
             return sorted(wheel_counts, key=lambda path: (-wheel_counts[path], str(path)))
 
+        def wheelhouse_has_package(wheelhouse: Path | None, package_prefixes: tuple[str, ...]) -> bool:
+            if wheelhouse is None:
+                return False
+            normalized_prefixes = tuple(prefix.lower().replace("-", "_") for prefix in package_prefixes)
+            for wheel_path in wheelhouse.glob("*.whl"):
+                stem = wheel_path.name.lower().replace("-", "_")
+                if any(stem.startswith(prefix) for prefix in normalized_prefixes):
+                    return True
+            return False
+
         def find_model_candidates(root: Path) -> list[Path]:
             candidates: list[Path] = []
             for config_path in root.rglob("config.json"):
@@ -135,6 +146,32 @@ cells = [
             WHEELHOUSE_DIRS.extend(discover_wheelhouse_dirs(wheelhouse_root))
         WHEELHOUSE_DIRS = dedupe_paths(WHEELHOUSE_DIRS)
 
+        def find_offline_package_root() -> Path | None:
+            direct_candidates = [
+                INPUT_ROOT / "datasets" / "dennisfong" / "nvidia-nemotron-offline-packages" / "offline_packages",
+                INPUT_ROOT / "nvidia-nemotron-offline-packages" / "offline_packages",
+                Path("/root/.cache/kagglehub/datasets/dennisfong/nvidia-nemotron-offline-packages/offline_packages"),
+                Path.home() / ".cache" / "kagglehub" / "datasets" / "dennisfong" / "nvidia-nemotron-offline-packages" / "offline_packages",
+            ]
+            for candidate in direct_candidates:
+                if candidate.exists() and any(candidate.glob("*.whl")):
+                    return candidate
+
+            for root in WHEELHOUSE_SCAN_ROOTS:
+                for candidate in sorted(path for path in root.rglob("offline_packages") if path.is_dir()):
+                    if any(candidate.glob("*.whl")):
+                        return candidate
+
+            return next(
+                (
+                    path for path in WHEELHOUSE_DIRS
+                    if wheelhouse_has_package(path, ("datasets", "trl", "peft", "mamba_ssm", "causal_conv1d"))
+                ),
+                None,
+            )
+
+        OFFLINE_PACKAGE_ROOT = find_offline_package_root()
+
         MODEL_CANDIDATES = find_model_candidates(INPUT_ROOT)
         MODEL_DIR = MODEL_CANDIDATES[0] if MODEL_CANDIDATES else None
         TRAIN_DATA_PATH = find_competition_file("train.csv")
@@ -147,11 +184,49 @@ cells = [
             "mamba_ssm",
             "causal_conv1d",
         ]
-        REQUIRED_STATUS = {
-            name: importlib.util.find_spec(name) is not None
-            for name in REQUIRED_MODULES
-        }
+
+        def collect_required_status() -> dict[str, bool]:
+            return {
+                name: importlib.util.find_spec(name) is not None
+                for name in REQUIRED_MODULES
+            }
+
+        REQUIRED_STATUS = collect_required_status()
         MISSING_MODULES = [name for name, present in REQUIRED_STATUS.items() if not present]
+
+        assert OFFLINE_PACKAGE_ROOT is not None and OFFLINE_PACKAGE_ROOT.exists(), (
+            "Could not find the offline package wheelhouse. Attach the dataset under /kaggle/input "
+            "or run kagglehub.dataset_download('dennisfong/nvidia-nemotron-offline-packages') first."
+        )
+
+        install_command = [
+            sys.executable,
+            "-m",
+            "pip",
+            "install",
+            "--quiet",
+            "--no-index",
+            "--find-links",
+            str(OFFLINE_PACKAGE_ROOT),
+            "--ignore-installed",
+            "datasets",
+            "trl",
+            "peft",
+            "mamba-ssm",
+            "causal-conv1d",
+            "ninja",
+            "packaging",
+        ]
+
+        OFFLINE_INSTALL_ATTEMPTED = False
+        if MISSING_MODULES:
+            print("Installing offline packages from:", OFFLINE_PACKAGE_ROOT)
+            print("Missing modules before install:", MISSING_MODULES)
+            OFFLINE_INSTALL_ATTEMPTED = True
+            subprocess.check_call(install_command)
+            importlib.invalidate_caches()
+            REQUIRED_STATUS = collect_required_status()
+            MISSING_MODULES = [name for name, present in REQUIRED_STATUS.items() if not present]
 
         print("Run ID:", RUN_ID)
         print("Artifact root:", RUN_ROOT)
@@ -186,12 +261,14 @@ cells = [
             "cuda_available": bool(torch.cuda.is_available()),
             "gpu_name": torch.cuda.get_device_name(0) if torch.cuda.is_available() else None,
             "gpu_capability": torch.cuda.get_device_capability(0) if torch.cuda.is_available() else None,
+            "offline_package_root": str(OFFLINE_PACKAGE_ROOT),
             "wheelhouse_scan_roots": [str(path) for path in WHEELHOUSE_SCAN_ROOTS[:10]],
             "wheelhouse_dirs": [str(path) for path in WHEELHOUSE_DIRS[:10]],
             "model_candidates": [str(path) for path in MODEL_CANDIDATES[:10]],
             "train_data_path": str(TRAIN_DATA_PATH) if TRAIN_DATA_PATH is not None else None,
             "test_data_path": str(TEST_DATA_PATH) if TEST_DATA_PATH is not None else None,
             "required_packages": REQUIRED_STATUS,
+            "offline_install_attempted": OFFLINE_INSTALL_ATTEMPTED,
             "python_version": platform.python_version(),
             "hostname": socket.gethostname(),
         }
@@ -205,8 +282,7 @@ cells = [
             raise RuntimeError(
                 "Missing required offline packages: "
                 + ", ".join(MISSING_MODULES)
-                + ". Preinstall them before running this notebook. "
-                + "If you attached/downloaded the dennisfong offline package dataset, install from that wheelhouse before Run All."
+                + ". The offline package dataset was attached, but the required wheels still were not importable after local installation."
             )
         """
     ),
