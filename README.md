@@ -86,6 +86,7 @@ python3 -m nemotron_platform.temporal.worker
 - Kaggle's `Install Dependencies` parser is strict: every line must begin with `pip install` and blank/comment lines can fail the build.
 - Use the exact paste-ready commands in `input_requirements.txt` or `docs/competition/kaggle_dependency_manager_commands.txt`.
 - Keep `causal-conv1d` and `mamba-ssm` out of the Kaggle dependency manager. They are source-heavy CUDA packages and should be installed from a wheelhouse or a targeted runtime step instead.
+- The notebook itself is now offline-only: it does not call PyPI or run `pip install` during execution. Any model-specific runtime packages must already be present before `Run All`.
 - If internet is blocked on the selected accelerator, attach an offline wheelhouse dataset and see `docs/competition/kaggle_offline_runtime.md`.
 - Each run writes artifacts under `/kaggle/working/artifacts/kaggle_runs/<run_id>/` and also creates a zip bundle in `/kaggle/working`.
 - Import an exported run locally with `make kaggle-import SOURCE=/path/to/kaggle_run_<run_id>.zip`.
