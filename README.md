@@ -82,7 +82,9 @@ python3 -m nemotron_platform.temporal.worker
 ## Kaggle Notebook
 
 - Competition notebook: `notebooks/nemotron_leaderboard_engine.ipynb`
+- LoRA training notebook: `notebooks/nvidia-nemotron-sfttrainer-training.ipynb`
 - Use it for Kaggle-side GPU verification, Torch/runtime dependency setup, model-load smoke tests, and structured JSONL/session logging.
+- Use the LoRA notebook for offline adapter training, local validation scoring, and packaging `submission.zip` from the trained adapter files.
 - Kaggle's `Install Dependencies` parser is strict: every line must begin with `pip install` and blank/comment lines can fail the build.
 - Use the exact paste-ready commands in `input_requirements.txt` or `docs/competition/kaggle_dependency_manager_commands.txt`.
 - Keep `causal-conv1d` and `mamba-ssm` out of the Kaggle dependency manager. They are source-heavy CUDA packages and should be installed from a wheelhouse or a targeted runtime step instead.
