@@ -23,9 +23,20 @@ PyPI package pages for `mamba-ssm` and `causal-conv1d` currently document source
 `notebooks/nemotron_leaderboard_engine.ipynb` now:
 
 - scans `/kaggle/input` for `.whl` files,
+- scans common KaggleHub cache paths for `.whl` files,
 - detects candidate wheelhouse directories,
 - prefers offline wheel installs when a matching wheelhouse is attached,
 - and only falls back to online installs when internet is actually available.
+
+If you prefetch an offline package dataset with KaggleHub, for example:
+
+```python
+import kagglehub
+path = kagglehub.dataset_download("dennisfong/nvidia-nemotron-offline-packages")
+print(path)
+```
+
+the notebook should now detect the resulting wheelhouse path automatically.
 
 ## Dependency Manager Note
 
