@@ -38,6 +38,7 @@ cells = [
         - the competition `train.csv` is attached,
         - the Nemotron model is attached,
         - the offline package dataset is either attached under `/kaggle/input` or downloaded with `kagglehub.dataset_download("dennisfong/nvidia-nemotron-offline-packages")`,
+        - if the offline package dataset does not include `mamba_ssm`, attach a local `mamba_ssm` source tarball or source directory as an extra dataset input,
         - and the goal is to produce `submission.zip` for the first scored Kaggle submission.
         """
     ),
@@ -57,6 +58,7 @@ cells = [
         import stat
         import subprocess
         import sys
+        import tarfile
         import time
         import traceback
         import zipfile
@@ -153,6 +155,9 @@ cells = [
         def stable_int(text: str) -> int:
             return int(hashlib.sha256(text.encode("utf-8")).hexdigest()[:16], 16)
 
+        def normalize_name(text: str) -> str:
+            return re.sub(r"[^a-z0-9]+", "_", text.lower())
+
         WHEELHOUSE_SCAN_ROOTS = dedupe_paths(
             [
                 path
@@ -162,6 +167,19 @@ cells = [
                     Path.home() / ".cache" / "kagglehub" / "datasets",
                     WORK_ROOT / "offline_packages",
                     WORK_ROOT / "wheelhouse",
+                ]
+                if path.exists()
+            ]
+        )
+        SOURCE_SCAN_ROOTS = dedupe_paths(
+            [
+                path
+                for path in [
+                    INPUT_ROOT,
+                    Path("/kaggle/usr/lib/notebooks"),
+                    Path("/root/.cache/kagglehub/datasets"),
+                    Path.home() / ".cache" / "kagglehub" / "datasets",
+                    WORK_ROOT,
                 ]
                 if path.exists()
             ]
@@ -217,6 +235,153 @@ cells = [
 
         REQUIRED_STATUS = collect_required_status()
         MISSING_MODULES = [name for name, present in REQUIRED_STATUS.items() if not present]
+        MODEL_RUNTIME_INSTALL_LOG: list[dict[str, object]] = []
+
+        def collect_model_runtime_status() -> dict[str, bool]:
+            return {
+                "mamba_ssm": importlib.util.find_spec("mamba_ssm") is not None,
+                "causal_conv1d": importlib.util.find_spec("causal_conv1d") is not None,
+            }
+
+        def extract_archives_for_fragments(package_fragments: tuple[str, ...]) -> list[Path]:
+            extracted_dirs: list[Path] = []
+            archive_patterns = ("*.tar.gz", "*.tgz")
+            extraction_root = WORK_ROOT / "_source_cache"
+            extraction_root.mkdir(parents=True, exist_ok=True)
+
+            for root in SOURCE_SCAN_ROOTS:
+                for pattern in archive_patterns:
+                    for archive_path in root.rglob(pattern):
+                        if not any(fragment in normalize_name(archive_path.name) for fragment in package_fragments):
+                            continue
+                        destination = extraction_root / normalize_name(archive_path.name)
+                        marker = destination / ".extracted"
+                        if not marker.exists():
+                            destination.mkdir(parents=True, exist_ok=True)
+                            with tarfile.open(archive_path, "r:*") as archive:
+                                archive.extractall(destination)
+                            marker.write_text(str(archive_path), encoding="utf-8")
+                        extracted_dirs.append(destination)
+
+            return extracted_dirs
+
+        def find_local_source_candidates(package_fragments: tuple[str, ...]) -> list[Path]:
+            candidates: list[Path] = []
+
+            for root in SOURCE_SCAN_ROOTS:
+                for setup_path in root.rglob("setup.py"):
+                    if any(fragment in normalize_name(str(setup_path.parent)) for fragment in package_fragments):
+                        candidates.append(setup_path.parent)
+
+            for extracted_root in extract_archives_for_fragments(package_fragments):
+                for setup_path in extracted_root.rglob("setup.py"):
+                    if any(fragment in normalize_name(str(setup_path.parent)) for fragment in package_fragments):
+                        candidates.append(setup_path.parent)
+
+            return dedupe_paths(candidates)
+
+        def install_packages_from_wheelhouse(package_names: tuple[str, ...], required_names: tuple[str, ...] | None = None) -> dict[str, object]:
+            required_names = required_names or package_names
+            if OFFLINE_PACKAGE_ROOT is None or not OFFLINE_PACKAGE_ROOT.exists():
+                return {
+                    "mode": "wheelhouse",
+                    "installed": False,
+                    "reason": "offline_package_root_missing",
+                    "requested_packages": list(package_names),
+                }
+
+            supplemental = []
+            for extra_name in ("ninja", "packaging", "setuptools"):
+                if extra_name not in package_names:
+                    supplemental.append(extra_name)
+
+            resolved_packages = tuple(package_names) + tuple(supplemental)
+            wheel_map, missing_wheels = select_package_wheels(OFFLINE_PACKAGE_ROOT, resolved_packages)
+            required_missing = [name for name in required_names if name in missing_wheels]
+            if required_missing:
+                return {
+                    "mode": "wheelhouse",
+                    "installed": False,
+                    "reason": "missing_wheels",
+                    "requested_packages": list(package_names),
+                    "required_missing": required_missing,
+                    "available_wheels_preview": sorted(path.name for path in OFFLINE_PACKAGE_ROOT.glob("*.whl"))[:100],
+                }
+
+            install_command = [
+                sys.executable,
+                "-m",
+                "pip",
+                "install",
+                "--quiet",
+                "--no-index",
+                "--ignore-installed",
+            ]
+            for package_name in resolved_packages:
+                install_command.extend(str(path) for path in wheel_map.get(package_name, []))
+
+            subprocess.check_call(install_command)
+            importlib.invalidate_caches()
+            return {
+                "mode": "wheelhouse",
+                "installed": True,
+                "requested_packages": list(package_names),
+                "resolved_wheels": {
+                    name: [path.name for path in paths]
+                    for name, paths in wheel_map.items()
+                },
+            }
+
+        def install_package_from_source(package_name: str, package_fragments: tuple[str, ...]) -> dict[str, object]:
+            candidates = find_local_source_candidates(package_fragments)
+            if not candidates:
+                return {
+                    "mode": "source",
+                    "installed": False,
+                    "package_name": package_name,
+                    "reason": "no_local_source_candidates",
+                    "scan_roots": [str(path) for path in SOURCE_SCAN_ROOTS[:20]],
+                }
+
+            failures: list[dict[str, str]] = []
+            for candidate in candidates:
+                try:
+                    subprocess.check_call(
+                        [
+                            sys.executable,
+                            "-m",
+                            "pip",
+                            "install",
+                            "--quiet",
+                            "--ignore-installed",
+                            "--no-build-isolation",
+                            str(candidate),
+                        ]
+                    )
+                    importlib.invalidate_caches()
+                    if importlib.util.find_spec(package_name) is not None:
+                        return {
+                            "mode": "source",
+                            "installed": True,
+                            "package_name": package_name,
+                            "source_path": str(candidate),
+                        }
+                except Exception as exc:
+                    failures.append(
+                        {
+                            "source_path": str(candidate),
+                            "error_type": type(exc).__name__,
+                            "error_message": str(exc),
+                        }
+                    )
+
+            return {
+                "mode": "source",
+                "installed": False,
+                "package_name": package_name,
+                "reason": "all_source_candidates_failed",
+                "failures": failures,
+            }
 
         OFFLINE_INSTALL_ATTEMPTED = False
         if MISSING_MODULES:
@@ -241,6 +406,7 @@ cells = [
                 "accelerate",
                 "ninja",
                 "packaging",
+                "setuptools",
             ]
             print("Installing offline packages from:", OFFLINE_PACKAGE_ROOT)
             print("Missing modules before install:", MISSING_MODULES)
@@ -250,6 +416,26 @@ cells = [
             importlib.invalidate_caches()
             REQUIRED_STATUS = collect_required_status()
             MISSING_MODULES = [name for name, present in REQUIRED_STATUS.items() if not present]
+
+        MODEL_RUNTIME_STATUS = collect_model_runtime_status()
+
+        if not MODEL_RUNTIME_STATUS["causal_conv1d"]:
+            causal_wheel_attempt = install_packages_from_wheelhouse(("causal_conv1d",), required_names=())
+            MODEL_RUNTIME_INSTALL_LOG.append(causal_wheel_attempt)
+            MODEL_RUNTIME_STATUS = collect_model_runtime_status()
+            if not MODEL_RUNTIME_STATUS["causal_conv1d"]:
+                causal_source_attempt = install_package_from_source("causal_conv1d", ("causal_conv1d", "causal_conv1d_cuda", "causal_conv1d_"))
+                MODEL_RUNTIME_INSTALL_LOG.append(causal_source_attempt)
+                MODEL_RUNTIME_STATUS = collect_model_runtime_status()
+
+        if not MODEL_RUNTIME_STATUS["mamba_ssm"]:
+            mamba_wheel_attempt = install_packages_from_wheelhouse(("mamba_ssm",), required_names=("mamba_ssm",))
+            MODEL_RUNTIME_INSTALL_LOG.append(mamba_wheel_attempt)
+            MODEL_RUNTIME_STATUS = collect_model_runtime_status()
+            if not MODEL_RUNTIME_STATUS["mamba_ssm"]:
+                mamba_source_attempt = install_package_from_source("mamba_ssm", ("mamba_ssm", "mamba_ssm_"))
+                MODEL_RUNTIME_INSTALL_LOG.append(mamba_source_attempt)
+                MODEL_RUNTIME_STATUS = collect_model_runtime_status()
 
         print("Run ID:", RUN_ID)
         print("Artifact root:", RUN_ROOT)
@@ -275,6 +461,10 @@ cells = [
         print("TRAIN_DATA_PATH:", TRAIN_DATA_PATH)
         print("TEST_DATA_PATH:", TEST_DATA_PATH)
         print("Required package status:", REQUIRED_STATUS)
+        print("Model runtime status:", MODEL_RUNTIME_STATUS)
+        print("Model runtime install log:")
+        for attempt in MODEL_RUNTIME_INSTALL_LOG:
+            print(json.dumps(attempt, indent=2, default=str))
 
         setup_summary = {
             "run_id": RUN_ID,
@@ -291,8 +481,11 @@ cells = [
             "train_data_path": str(TRAIN_DATA_PATH) if TRAIN_DATA_PATH is not None else None,
             "test_data_path": str(TEST_DATA_PATH) if TEST_DATA_PATH is not None else None,
             "required_packages": REQUIRED_STATUS,
+            "model_runtime_status": MODEL_RUNTIME_STATUS,
+            "model_runtime_install_log": MODEL_RUNTIME_INSTALL_LOG,
             "offline_install_attempted": OFFLINE_INSTALL_ATTEMPTED,
             "offline_package_root": str(OFFLINE_PACKAGE_ROOT),
+            "source_scan_roots": [str(path) for path in SOURCE_SCAN_ROOTS[:20]],
             "python_version": platform.python_version(),
             "hostname": socket.gethostname(),
         }
@@ -307,6 +500,12 @@ cells = [
                 "Missing required Python packages after offline install: "
                 + ", ".join(MISSING_MODULES)
                 + ". The offline package dataset was attached, but the required modules still were not importable after local installation."
+            )
+        if not MODEL_RUNTIME_STATUS["mamba_ssm"]:
+            raise RuntimeError(
+                "mamba_ssm is still missing before model load. Attach an offline wheelhouse that contains "
+                "a compatible mamba_ssm wheel, or attach a local mamba_ssm source tarball/source directory "
+                "under /kaggle/input so this notebook can build it offline."
             )
         """
     ),
@@ -578,7 +777,7 @@ cells = [
             str(MODEL_DIR),
             device_map="auto",
             trust_remote_code=True,
-            torch_dtype=torch.bfloat16,
+            dtype=torch.bfloat16,
             low_cpu_mem_usage=True,
         )
         model.config.use_cache = False
