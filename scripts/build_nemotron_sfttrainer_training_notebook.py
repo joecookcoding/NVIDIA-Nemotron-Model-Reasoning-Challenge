@@ -346,18 +346,21 @@ cells = [
             failures: list[dict[str, str]] = []
             for candidate in candidates:
                 try:
-                    subprocess.check_call(
-                        [
-                            sys.executable,
-                            "-m",
-                            "pip",
-                            "install",
-                            "--quiet",
-                            "--ignore-installed",
-                            "--no-build-isolation",
-                            str(candidate),
-                        ]
-                    )
+                    install_command = [
+                        sys.executable,
+                        "-m",
+                        "pip",
+                        "install",
+                        "--quiet",
+                        "--ignore-installed",
+                        "--no-build-isolation",
+                        "--no-deps",
+                        "--no-index",
+                    ]
+                    if OFFLINE_PACKAGE_ROOT is not None and OFFLINE_PACKAGE_ROOT.exists():
+                        install_command.extend(["--find-links", str(OFFLINE_PACKAGE_ROOT)])
+                    install_command.append(str(candidate))
+                    subprocess.check_call(install_command)
                     importlib.invalidate_caches()
                     if importlib.util.find_spec(package_name) is not None:
                         return {
