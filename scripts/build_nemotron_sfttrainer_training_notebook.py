@@ -233,6 +233,17 @@ cells = [
                 for name in REQUIRED_MODULES
             }
 
+        def collect_import_status(module_names: tuple[str, ...]) -> dict[str, bool]:
+            return {
+                name: importlib.util.find_spec(name) is not None
+                for name in module_names
+            }
+
+        def clear_module_prefix(prefix: str) -> None:
+            for module_name in list(sys.modules):
+                if module_name == prefix or module_name.startswith(prefix + "."):
+                    sys.modules.pop(module_name, None)
+
         REQUIRED_STATUS = collect_required_status()
         MISSING_MODULES = [name for name, present in REQUIRED_STATUS.items() if not present]
         MODEL_RUNTIME_INSTALL_LOG: list[dict[str, object]] = []
@@ -352,7 +363,6 @@ cells = [
                         "pip",
                         "install",
                         "--quiet",
-                        "--ignore-installed",
                         "--no-build-isolation",
                         "--no-deps",
                         "--no-index",
@@ -360,7 +370,10 @@ cells = [
                     if OFFLINE_PACKAGE_ROOT is not None and OFFLINE_PACKAGE_ROOT.exists():
                         install_command.extend(["--find-links", str(OFFLINE_PACKAGE_ROOT)])
                     install_command.append(str(candidate))
-                    subprocess.check_call(install_command)
+                    env = os.environ.copy()
+                    if package_name == "mamba_ssm":
+                        env["MAMBA_FORCE_BUILD"] = "TRUE"
+                    subprocess.check_call(install_command, env=env)
                     importlib.invalidate_caches()
                     if importlib.util.find_spec(package_name) is not None:
                         return {
@@ -386,6 +399,74 @@ cells = [
                 "failures": failures,
             }
 
+        def activate_mamba_source_tree() -> dict[str, object]:
+            candidates = find_local_source_candidates(("mamba_ssm", "mamba_ssm_"))
+            if not candidates:
+                return {
+                    "mode": "source_path",
+                    "activated": False,
+                    "reason": "no_local_source_candidates",
+                }
+
+            activation_root = WORK_ROOT / "_mamba_source_activation"
+            failures: list[dict[str, str]] = []
+
+            for candidate in candidates:
+                package_dir = candidate / "mamba_ssm"
+                init_path = package_dir / "__init__.py"
+                if not init_path.exists():
+                    failures.append(
+                        {
+                            "source_path": str(candidate),
+                            "error_type": "MissingInit",
+                            "error_message": "mamba_ssm/__init__.py not found",
+                        }
+                    )
+                    continue
+
+                try:
+                    patched_root = activation_root / normalize_name(str(candidate))
+                    if patched_root.exists():
+                        shutil.rmtree(patched_root)
+                    shutil.copytree(candidate, patched_root)
+
+                    patched_init = patched_root / "mamba_ssm" / "__init__.py"
+                    original_text = patched_init.read_text(encoding="utf-8")
+                    version_match = re.search(r"__version__\s*=\s*[\"']([^\"']+)[\"']", original_text)
+                    version_value = version_match.group(1) if version_match else "0.0.0"
+                    patched_init.write_text(
+                        f'__version__ = "{version_value}"\n',
+                        encoding="utf-8",
+                    )
+
+                    clear_module_prefix("mamba_ssm")
+                    sys.path.insert(0, str(patched_root))
+                    importlib.invalidate_caches()
+                    importlib.import_module("mamba_ssm")
+                    importlib.import_module("mamba_ssm.ops.triton.layernorm_gated")
+
+                    return {
+                        "mode": "source_path",
+                        "activated": True,
+                        "source_path": str(candidate),
+                        "patched_root": str(patched_root),
+                    }
+                except Exception as exc:
+                    failures.append(
+                        {
+                            "source_path": str(candidate),
+                            "error_type": type(exc).__name__,
+                            "error_message": str(exc),
+                        }
+                    )
+
+            return {
+                "mode": "source_path",
+                "activated": False,
+                "reason": "all_source_candidates_failed",
+                "failures": failures,
+            }
+
         OFFLINE_INSTALL_ATTEMPTED = False
         if MISSING_MODULES:
             assert OFFLINE_PACKAGE_ROOT is not None and OFFLINE_PACKAGE_ROOT.exists(), (
@@ -393,6 +474,9 @@ cells = [
                 "or run kagglehub.dataset_download('dennisfong/nvidia-nemotron-offline-packages') first."
             )
             available_wheels = sorted(path.name for path in OFFLINE_PACKAGE_ROOT.glob("*.whl"))
+            helper_status = collect_import_status(("ninja", "packaging", "setuptools"))
+            requested_packages = [name for name in MISSING_MODULES]
+            requested_packages.extend(name for name, present in helper_status.items() if not present)
             install_command = [
                 sys.executable,
                 "-m",
@@ -402,17 +486,11 @@ cells = [
                 "--no-index",
                 "--find-links",
                 str(OFFLINE_PACKAGE_ROOT),
-                "--ignore-installed",
-                "datasets",
-                "trl",
-                "peft",
-                "accelerate",
-                "ninja",
-                "packaging",
-                "setuptools",
             ]
+            install_command.extend(requested_packages)
             print("Installing offline packages from:", OFFLINE_PACKAGE_ROOT)
             print("Missing modules before install:", MISSING_MODULES)
+            print("Requested packages:", requested_packages)
             print("Wheel preview:", available_wheels[:40])
             OFFLINE_INSTALL_ATTEMPTED = True
             subprocess.check_call(install_command)
@@ -438,6 +516,10 @@ cells = [
             if not MODEL_RUNTIME_STATUS["mamba_ssm"]:
                 mamba_source_attempt = install_package_from_source("mamba_ssm", ("mamba_ssm", "mamba_ssm_"))
                 MODEL_RUNTIME_INSTALL_LOG.append(mamba_source_attempt)
+                MODEL_RUNTIME_STATUS = collect_model_runtime_status()
+            if not MODEL_RUNTIME_STATUS["mamba_ssm"]:
+                mamba_source_path_attempt = activate_mamba_source_tree()
+                MODEL_RUNTIME_INSTALL_LOG.append(mamba_source_path_attempt)
                 MODEL_RUNTIME_STATUS = collect_model_runtime_status()
 
         print("Run ID:", RUN_ID)
