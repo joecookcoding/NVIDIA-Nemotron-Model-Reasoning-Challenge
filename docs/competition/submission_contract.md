@@ -1,18 +1,22 @@
 # Submission Contract
 
-Current implementation assumption:
+Official competition details captured from the Kaggle competition and data pages:
 
-- Output file: `submission.csv`
-- Required columns: `id`, `answer`
-- Validation: non-empty records, required columns present, no duplicate `id`
+- Output file: `submission.zip`
+- Submission contents: a compatible `LoRA` adapter for `NVIDIA Nemotron-3-Nano-30B`
+- Rank cap: at most `32`
+- Required adapter file signal: `adapter_config.json`
+- Evaluation runtime: the base model is loaded with the submitted LoRA adapter using `vLLM`
 
-This is a placeholder contract for development only.
+## Confirmed Source Signals
 
-## Replace After Kaggle Capture
+- The competition page says: submit a LoRA adapter of rank at most `32` for the `NVIDIA Nemotron-3-Nano-30B` model packaged into `submission.zip`.
+- The data page repeats that the submission must be `submission.zip` containing a LoRA adapter.
+- The evaluation section states that the adapter must include `adapter_config.json`.
 
-- Sample submission filename
-- Required columns and ordering
-- Header requirements
-- Any compression or packaging rules
-- Any hidden-test caveats or row-count expectations
+## Still Pending
 
+- Exact required file list inside `submission.zip`
+- Any directory structure requirements inside the zip
+- Any hidden-test caveats beyond the public page text
+- The exact relative numerical tolerance value from the metric page, which was missing in the pasted capture

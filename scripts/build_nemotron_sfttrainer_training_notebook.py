@@ -23,22 +23,22 @@ def code(text: str) -> dict:
     }
 
 
-NOTEBOOK_PATH = Path("notebooks/nvidia-nemotron-sfttrainer-training.ipynb")
+NOTEBOOK_PATH = Path("notebooks/nvidia-nemotron-first-submit.ipynb")
 
 
 cells = [
     md(
         """
-        # Nemotron SFTTrainer Competition Training
+        # Nemotron First Submit
 
-        Offline LoRA training notebook for the NVIDIA Nemotron Model Reasoning Challenge.
+        Single Kaggle notebook for the NVIDIA Nemotron Model Reasoning Challenge.
 
         This notebook assumes:
 
         - the competition `train.csv` is attached,
         - the Nemotron model is attached,
         - the offline package dataset is either attached under `/kaggle/input` or downloaded with `kagglehub.dataset_download("dennisfong/nvidia-nemotron-offline-packages")`,
-        - and no network calls are made during notebook execution.
+        - and the goal is to produce `submission.zip` for the first scored Kaggle submission.
         """
     ),
     code(
@@ -68,7 +68,7 @@ cells = [
 
         INPUT_ROOT = Path("/kaggle/input")
         WORK_ROOT = Path("/kaggle/working")
-        NOTEBOOK_NAME = "nvidia-nemotron-sfttrainer-training"
+        NOTEBOOK_NAME = "nvidia-nemotron-first-submit"
         RUN_ID = os.environ.get("NEMOTRON_LORA_RUN_ID") or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         RUN_ROOT = WORK_ROOT / "artifacts" / "lora_runs" / RUN_ID
         RUN_ROOT.mkdir(parents=True, exist_ok=True)
@@ -101,11 +101,13 @@ cells = [
             if wheelhouse is None:
                 return False
             normalized_prefixes = tuple(prefix.lower().replace("-", "_") for prefix in package_prefixes)
+            seen_prefixes: set[str] = set()
             for wheel_path in wheelhouse.glob("*.whl"):
                 stem = wheel_path.name.lower().replace("-", "_")
-                if any(stem.startswith(prefix) for prefix in normalized_prefixes):
-                    return True
-            return False
+                for prefix in normalized_prefixes:
+                    if stem.startswith(prefix):
+                        seen_prefixes.add(prefix)
+            return all(prefix in seen_prefixes for prefix in normalized_prefixes)
 
         def select_package_wheels(wheelhouse: Path, package_names: tuple[str, ...]) -> tuple[dict[str, list[Path]], list[str]]:
             py_tag = f"cp{sys.version_info.major}{sys.version_info.minor}"
@@ -188,7 +190,7 @@ cells = [
             return next(
                 (
                     path for path in WHEELHOUSE_DIRS
-                    if wheelhouse_has_package(path, ("datasets", "trl", "peft", "mamba_ssm"))
+                    if wheelhouse_has_package(path, ("datasets", "trl", "peft", "accelerate"))
                 ),
                 None,
             )
@@ -204,7 +206,7 @@ cells = [
             "datasets",
             "trl",
             "peft",
-            "mamba_ssm",
+            "accelerate",
         ]
 
         def collect_required_status() -> dict[str, bool]:
@@ -216,34 +218,13 @@ cells = [
         REQUIRED_STATUS = collect_required_status()
         MISSING_MODULES = [name for name, present in REQUIRED_STATUS.items() if not present]
 
-        assert OFFLINE_PACKAGE_ROOT is not None and OFFLINE_PACKAGE_ROOT.exists(), (
-            "Could not find the offline package wheelhouse. Attach the dataset under /kaggle/input "
-            "or run kagglehub.dataset_download('dennisfong/nvidia-nemotron-offline-packages') first."
-        )
-
         OFFLINE_INSTALL_ATTEMPTED = False
         if MISSING_MODULES:
-            wheel_map, missing_wheels = select_package_wheels(
-                OFFLINE_PACKAGE_ROOT,
-                ("datasets", "trl", "peft", "mamba_ssm", "causal_conv1d", "ninja", "packaging"),
+            assert OFFLINE_PACKAGE_ROOT is not None and OFFLINE_PACKAGE_ROOT.exists(), (
+                "Could not find the offline package wheelhouse. Attach the dataset under /kaggle/input "
+                "or run kagglehub.dataset_download('dennisfong/nvidia-nemotron-offline-packages') first."
             )
             available_wheels = sorted(path.name for path in OFFLINE_PACKAGE_ROOT.glob("*.whl"))
-            required_missing_wheels = [name for name in missing_wheels if name != "causal_conv1d"]
-            if required_missing_wheels:
-                diagnostic_payload = {
-                    "stage": "offline_package_resolution",
-                    "offline_package_root": str(OFFLINE_PACKAGE_ROOT),
-                    "missing_wheels": required_missing_wheels,
-                    "optional_missing_wheels": [name for name in missing_wheels if name == "causal_conv1d"],
-                    "available_wheels_preview": available_wheels[:200],
-                }
-                write_json(RUN_ROOT / "offline_package_resolution_error.json", diagnostic_payload)
-                raise RuntimeError(
-                    "The offline package dataset does not contain compatible wheels for: "
-                    + ", ".join(required_missing_wheels)
-                    + ". Inspect offline_package_resolution_error.json in the run artifacts."
-                )
-
             install_command = [
                 sys.executable,
                 "-m",
@@ -251,17 +232,19 @@ cells = [
                 "install",
                 "--quiet",
                 "--no-index",
+                "--find-links",
+                str(OFFLINE_PACKAGE_ROOT),
                 "--ignore-installed",
+                "datasets",
+                "trl",
+                "peft",
+                "accelerate",
+                "ninja",
+                "packaging",
             ]
-            for package_name in ("datasets", "trl", "peft", "mamba_ssm", "ninja", "packaging"):
-                install_command.extend(str(path) for path in wheel_map.get(package_name, []))
-            install_command.extend(str(path) for path in wheel_map.get("causal_conv1d", []))
-
             print("Installing offline packages from:", OFFLINE_PACKAGE_ROOT)
             print("Missing modules before install:", MISSING_MODULES)
-            print("Resolved wheel files:")
-            for package_name, paths in wheel_map.items():
-                print(package_name, [path.name for path in paths])
+            print("Wheel preview:", available_wheels[:40])
             OFFLINE_INSTALL_ATTEMPTED = True
             subprocess.check_call(install_command)
             importlib.invalidate_caches()
@@ -321,9 +304,9 @@ cells = [
 
         if MISSING_MODULES:
             raise RuntimeError(
-                "Missing required offline packages: "
+                "Missing required Python packages after offline install: "
                 + ", ".join(MISSING_MODULES)
-                + ". The offline package dataset was attached, but the required wheels still were not importable after local installation."
+                + ". The offline package dataset was attached, but the required modules still were not importable after local installation."
             )
         """
     ),
@@ -332,7 +315,7 @@ cells = [
         ## Runtime Fixes And Training Config
 
         This cell applies the Blackwell/Triton workarounds from the competition notebook,
-        then defines the LoRA training configuration and local validation split.
+        then defines the lightweight LoRA configuration for the first scored submission.
         """
     ),
     code(
@@ -410,9 +393,9 @@ cells = [
         write_json(RUN_ROOT / "runtime_patch_summary.json", runtime_patch_summary)
         print(json.dumps(runtime_patch_summary, indent=2))
 
-        TRAIN_SAMPLE_LIMIT = 2400
+        TRAIN_SAMPLE_LIMIT = 600
         VAL_FRACTION = 0.10
-        VAL_SAMPLE_LIMIT = 120
+        VAL_SAMPLE_LIMIT = 60
         RANDOM_SEED = 42
 
         LORA_RANK = 32

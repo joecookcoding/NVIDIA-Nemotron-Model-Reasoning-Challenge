@@ -1,0 +1,89 @@
+{
+  "branchName": "first-successful-submission",
+  "objective": "Submit the first successful Kaggle submission for the NVIDIA Nemotron Model Reasoning Challenge, then use that accepted path as the base for higher-score LoRA and workflow improvements.",
+  "userStories": [
+    {
+      "id": "S1",
+      "title": "Freeze the official competition constraints in repo docs",
+      "priority": 1,
+      "passes": true,
+      "acceptanceCriteria": [
+        "The repo captures official competition overview, evaluation, data, discussion, and rules text under docs/competition",
+        "The submission contract no longer assumes a CSV file",
+        "Remaining unknowns are listed explicitly instead of guessed"
+      ],
+      "checks": [
+        "Read docs/competition/source_capture.md",
+        "Read docs/competition/submission_contract.md",
+        "Read docs/competition/rules.md"
+      ],
+      "notes": "This is already completed and should be treated as frozen context for the first submission path."
+    },
+    {
+      "id": "S2",
+      "title": "Validate the submission demo notebook as the first-submission path",
+      "priority": 2,
+      "passes": false,
+      "acceptanceCriteria": [
+        "The preferred first-submit path is explicitly notebooks/nvidia-nemotron-submission-demo.ipynb",
+        "The notebook path is aligned with the captured submission contract: submission.zip, compatible LoRA adapter, adapter_config.json, rank <= 32",
+        "Any unresolved runtime or packaging assumptions are written down before spending more submissions"
+      ],
+      "checks": [
+        "Read docs/competition/evaluation.md",
+        "Read docs/competition/submission_contract.md",
+        "Inspect notebooks/nvidia-nemotron-submission-demo.ipynb packaging cells"
+      ],
+      "notes": "Keep this story focused on validating the first-submit path, not on raising score yet."
+    },
+    {
+      "id": "S3",
+      "title": "Produce the first Kaggle-ready submission.zip artifact",
+      "priority": 3,
+      "passes": false,
+      "acceptanceCriteria": [
+        "The submission demo path produces a submission.zip artifact",
+        "The zip contents include adapter_config.json",
+        "The artifact location and any run notes are recorded in progress.txt"
+      ],
+      "checks": [
+        "Verify the packaging summary from the notebook run",
+        "Inspect the produced submission.zip"
+      ],
+      "notes": "This story ends when the artifact is ready for Kaggle submission."
+    },
+    {
+      "id": "S4",
+      "title": "Record the first accepted Kaggle submission result",
+      "priority": 4,
+      "passes": false,
+      "acceptanceCriteria": [
+        "The user confirms Kaggle accepted the submission artifact",
+        "The acceptance status and any public score are logged in progress.txt",
+        "The next score-improvement direction is named clearly"
+      ],
+      "checks": [
+        "Manual Kaggle submission confirmation from the user",
+        "Read progress.txt"
+      ],
+      "notes": "This story requires the actual Kaggle submit action and confirmation from the competition UI."
+    },
+    {
+      "id": "S5",
+      "title": "Create the first post-submit improvement plan",
+      "priority": 5,
+      "passes": false,
+      "acceptanceCriteria": [
+        "The repo has a clear next-step task list for score improvement",
+        "The first improvement phase stays within the official rules and evaluation assumptions",
+        "The plan distinguishes between deterministic hardening, LoRA quality improvements, and broader experiment ideas"
+      ],
+      "checks": [
+        "Read docs/competition/evaluation.md",
+        "Read docs/competition/rules.md",
+        "Review the updated prd.json or a successor PRD"
+      ],
+      "notes": "Do not start broad score work until the first submission path is proven."
+    }
+  ]
+}

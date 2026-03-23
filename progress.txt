@@ -1,0 +1,20 @@
+## Codebase Patterns
+
+- Final competition submissions are `submission.zip`, not `submission.csv`.
+- The submitted artifact must be a compatible LoRA adapter for `NVIDIA Nemotron-3-Nano-30B`.
+- Evaluation uses `vLLM` and expects `adapter_config.json` in the submitted adapter package.
+- Competition rules currently captured in repo allow `5` submissions per day and up to `2` final submissions.
+- Prize eligibility requires a public Kaggle notebook and a write-up.
+- The current preferred first-submit path is `notebooks/nvidia-nemotron-submission-demo.ipynb`.
+
+## 2026-03-22 - LOOP-SETUP
+
+- Implemented: created the first Ralph-style task list and progress log for the competition effort.
+- Files changed: `prd.json`, `progress.txt`
+- Checks run: confirmed captured competition docs exist under `docs/competition` and that the root loop files were previously missing.
+- Learnings for future iterations:
+  - Phase 1 is proving one accepted submission path end to end.
+  - Score optimization starts only after the first accepted submit is recorded.
+  - The repo should treat official Kaggle captures as the source of truth for packaging and rules-sensitive behavior.
+
+---
